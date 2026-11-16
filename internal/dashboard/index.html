@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ProxyLab Dashboard</title>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: #0d1117; color: #e6edf3; padding: 24px; }
+    h1 { margin-top: 0; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px; }
+    .card .label { font-size: 0.78rem; color: #8b949e; text-transform: uppercase; }
+    .card .val { font-size: 1.5rem; font-weight: 700; margin-top: 4px; }
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+    select, button, a.btn { background: #21262d; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 8px 12px; text-decoration: none; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; background: #161b22; border: 1px solid #30363d; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #30363d; text-align: left; font-size: 0.9rem; }
+    .alive { color: #3fb950; }
+    .dead { color: #f85149; }
+  </style>
+</head>
+<body>
+  <h1>ProxyLab Dashboard</h1>
+  <div class="cards" id="summary"></div>
+  <div class="toolbar">
+    <select id="f-alive"><option value="">All Statuses</option><option value="true">Alive Only</option></select>
+    <select id="f-proto"><option value="">All Protocols</option><option value="http">HTTP</option><option value="https">HTTPS</option><option value="socks5">SOCKS5</option></select>
+    <select id="f-anon"><option value="">All Anonymity</option><option value="elite">Elite</option><option value="anonymous">Anonymous</option><option value="transparent">Transparent</option></select>
+    <button onclick="refresh()">Refresh</button>
+    <a class="btn" href="/api/export?format=csv">Export CSV</a>
+    <a class="btn" href="/api/export?format=json">Export JSON</a>
+    <a class="btn" href="/api/export?format=txt">Export TXT</a>
+  </div>
+  <table>
+    <thead><tr><th>Proxy</th><th>Status</th><th>Latency</th><th>Success Rate</th><th>Anonymity</th><th>Country</th><th>Exit IP</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <script>
+    async function refresh() {
+      const rep = await fetch('/api/report').then(r => r.json());
+      document.getElementById('summary').innerHTML = `
+        <div class="card"><div class="label">Total</div><div class="val">${rep.total_checked}</div></div>
+        <div class="card"><div class="label">Alive</div><div class="val alive">${rep.alive_count}</div></div>
+        <div class="card"><div class="label">Dead</div><div class="val dead">${rep.dead_count}</div></div>
+        <div class="card"><div class="label">Avg Latency</div><div class="val">${Math.round(rep.avg_latency_ms)} ms</div></div>
+      `;
+      const q = new URLSearchParams();
+      if (document.getElementById('f-alive').value) q.set('alive', 'true');
+      if (document.getElementById('f-proto').value) q.set('protocol', document.getElementById('f-proto').value);
+      if (document.getElementById('f-anon').value) q.set('anonymity', document.getElementById('f-anon').value);
+      const data = await fetch('/api/results?' + q.toString()).then(r => r.json());
+      const tbody = document.getElementById('rows');
+      tbody.innerHTML = '';
+      for (const r of (data.results || [])) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.proxy.protocol}://${r.proxy.host}:${r.proxy.port}</td>
+          <td class="${r.alive ? 'alive' : 'dead'}">${r.alive ? 'ALIVE' : 'DEAD'}</td>
+          <td>${r.latency_ms} ms</td>
+          <td>${r.success_rate.toFixed(0)}%</td>
+          <td>${r.anonymity}</td>
+          <td>${r.proxy.country || '-'}</td>
+          <td>${r.exit_ip || '-'}</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+    refresh();
+  </script>
+</body>
+</html>
